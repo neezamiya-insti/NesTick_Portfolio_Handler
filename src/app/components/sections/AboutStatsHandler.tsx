@@ -69,6 +69,8 @@ export function AboutStatsHandler({ college, templateId }: AboutStatsHandlerProp
       const timestamp = Date.now();
       const url = `/api/sections?template_id=${activeTemplateId}&section_name=AboutStats&college_id=${collegeId}&_=${timestamp}`;
       
+      console.log('🔄 [AboutStats] Loading from:', url);
+      
       const response = await fetch(url, {
         cache: 'no-store',
         headers: {
@@ -79,11 +81,14 @@ export function AboutStatsHandler({ college, templateId }: AboutStatsHandlerProp
       
       if (response.ok) {
         const data = await response.json();
+        console.log('📦 [AboutStats] API Response:', data);
+        
         if (data.sections && data.sections.length > 0) {
           const dbContent = data.sections[0].content;
           setLastUpdated(data.sections[0].updated_at);
           
           if (dbContent && Object.keys(dbContent).length > 0) {
+            console.log('📋 [AboutStats] DB content:', dbContent);
             setFormData({
               ...defaultFormData,
               ...dbContent
@@ -92,7 +97,7 @@ export function AboutStatsHandler({ college, templateId }: AboutStatsHandlerProp
         }
       }
     } catch (error) {
-      console.error('Failed to load about stats data:', error);
+      console.error('❌ [AboutStats] Failed to load:', error);
     } finally {
       if (showLoading) setIsLoading(false);
     }
@@ -106,6 +111,8 @@ export function AboutStatsHandler({ college, templateId }: AboutStatsHandlerProp
       const activeTemplateId = getActiveTemplateId();
       const collegeId = getCollegeId();
       
+      console.log('💾 [AboutStats] Saving formData:', formData);
+      
       const response = await fetch('/api/sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -118,31 +125,84 @@ export function AboutStatsHandler({ college, templateId }: AboutStatsHandlerProp
       });
       
       if (response.ok) {
+        console.log('✅ [AboutStats] Save successful');
         setShowSuccessPopup(true);
         setIsEditing(false);
         await loadFromDatabase(false);
         setTimeout(() => setShowSuccessPopup(false), 3000);
       } else {
+        const errText = await response.text();
+        console.error('❌ [AboutStats] Save failed:', errText);
         alert('Failed to save changes');
       }
     } catch (error) {
-      console.error('Error saving:', error);
+      console.error('❌ [AboutStats] Error saving:', error);
       alert('Failed to save changes. Please try again.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // ✅ Image handlers - only upload, no URL paste
-  const handleImageChange = (key: 'desktopImage' | 'mobileImage', fileOrString: File | string) => {
-    if (typeof fileOrString === 'string') {
+  // ✅ Image handler — FIXED to accept BOTH File and string
+  // Pehle `if (typeof fileOrString === 'string') return;` string ko discard kar deta tha.
+  // Ab agar UploadImage base64/URL string bhejta hai to seedha use kar lete hain.
+  const handleImageChange = (
+    key: 'desktopImage' | 'mobileImage',
+    fileOrString: File | string | null
+  ) => {
+    console.log('🔵 [AboutStats] handleImageChange called', {
+      key,
+      typeofValue: typeof fileOrString,
+      isFile: fileOrString instanceof File,
+      valuePreview:
+        typeof fileOrString === 'string'
+          ? fileOrString.slice(0, 80)
+          : fileOrString?.name || '(non-string)',
+    });
+
+    // Null / undefined safety
+    if (!fileOrString) {
+      console.warn('⚠️ [AboutStats] Empty fileOrString received, ignoring.');
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData(prev => ({ ...prev, [key]: reader.result as string }));
-    };
-    reader.readAsDataURL(fileOrString);
+
+    // ✅ Case 1: Already a string (base64 data URL or http URL) → use directly
+    if (typeof fileOrString === 'string') {
+      console.log('🟡 [AboutStats] String received — using directly');
+      setFormData(prev => {
+        const updated = { ...prev, [key]: fileOrString };
+        console.log('🟢 [AboutStats] Updated formData:', {
+          key,
+          length: fileOrString.length,
+        });
+        return updated;
+      });
+      return;
+    }
+
+    // ✅ Case 2: A File object → convert to base64 via FileReader
+    if (fileOrString instanceof File) {
+      console.log('🟠 [AboutStats] File object received — starting FileReader');
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        console.log('🟢 [AboutStats] FileReader done. base64 length:', result?.length);
+        setFormData(prev => ({ ...prev, [key]: result }));
+      };
+      reader.onerror = (err) => {
+        console.error('❌ [AboutStats] FileReader error:', err);
+      };
+      reader.readAsDataURL(fileOrString);
+      return;
+    }
+
+    console.error('❌ [AboutStats] Unsupported type:', fileOrString);
+  };
+
+  // ✅ Remove image handler
+  const removeImage = (key: 'desktopImage' | 'mobileImage') => {
+    console.log(`🗑️ [AboutStats] Removing ${key}`);
+    setFormData(prev => ({ ...prev, [key]: '' }));
   };
 
   useEffect(() => {
@@ -329,11 +389,20 @@ export function AboutStatsHandler({ college, templateId }: AboutStatsHandlerProp
               </div>
               <UploadImage
                 value={formData.desktopImage || ''}
-                onChange={(file) => handleImageChange('desktopImage', file)}
-                onRemove={() => setFormData(prev => ({ ...prev, desktopImage: '' }))}
+                onChange={(file) => handleImageChange('desktopImage', file as any)}
+                onRemove={() => removeImage('desktopImage')}
                 aspectRatio="square"
                 disabled={!isEditing}
               />
+              {/* DEBUG: show current value length */}
+              <div className="mt-1 text-[10px] text-gray-400">
+                debug: desktopImage length = {formData.desktopImage?.length || 0}
+              </div>
+              {formData.desktopImage && (
+                <div className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                  <FiCheck className="w-3 h-3" /> Desktop image uploaded
+                </div>
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -344,11 +413,20 @@ export function AboutStatsHandler({ college, templateId }: AboutStatsHandlerProp
               </div>
               <UploadImage
                 value={formData.mobileImage || ''}
-                onChange={(file) => handleImageChange('mobileImage', file)}
-                onRemove={() => setFormData(prev => ({ ...prev, mobileImage: '' }))}
+                onChange={(file) => handleImageChange('mobileImage', file as any)}
+                onRemove={() => removeImage('mobileImage')}
                 aspectRatio="square"
                 disabled={!isEditing}
               />
+              {/* DEBUG: show current value length */}
+              <div className="mt-1 text-[10px] text-gray-400">
+                debug: mobileImage length = {formData.mobileImage?.length || 0}
+              </div>
+              {formData.mobileImage && (
+                <div className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                  <FiCheck className="w-3 h-3" /> Mobile image uploaded
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -365,6 +443,12 @@ export function AboutStatsHandler({ college, templateId }: AboutStatsHandlerProp
                     src={formData.desktopImage} 
                     alt="Desktop preview" 
                     className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                    onError={(e) => {
+                      console.error('❌ [AboutStats] Desktop image failed to load:', formData.desktopImage?.slice(0, 80));
+                    }}
+                    onLoad={() => {
+                      console.log('✅ [AboutStats] Desktop image loaded');
+                    }}
                   />
                 </div>
               )}
@@ -375,6 +459,12 @@ export function AboutStatsHandler({ college, templateId }: AboutStatsHandlerProp
                     src={formData.mobileImage} 
                     alt="Mobile preview" 
                     className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                    onError={(e) => {
+                      console.error('❌ [AboutStats] Mobile image failed to load:', formData.mobileImage?.slice(0, 80));
+                    }}
+                    onLoad={() => {
+                      console.log('✅ [AboutStats] Mobile image loaded');
+                    }}
                   />
                 </div>
               )}

@@ -61,8 +61,6 @@ const defaultFormData: FacultyStatsFormData = {
   mobileBadge2Text: 'Excellence'
 };
 
-
-
 export function FacultyStatsHandler({ college, templateId }: FacultyStatsHandlerProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -89,6 +87,8 @@ export function FacultyStatsHandler({ college, templateId }: FacultyStatsHandler
       const timestamp = Date.now();
       const url = `/api/sections?template_id=${activeTemplateId}&section_name=FacultyStats&college_id=${collegeId}&_=${timestamp}`;
       
+      console.log('🔄 [FacultyStats] Loading from:', url);
+      
       const response = await fetch(url, {
         cache: 'no-store',
         headers: {
@@ -99,11 +99,14 @@ export function FacultyStatsHandler({ college, templateId }: FacultyStatsHandler
       
       if (response.ok) {
         const data = await response.json();
+        console.log('📦 [FacultyStats] API Response:', data);
+        
         if (data.sections && data.sections.length > 0) {
           const dbContent = data.sections[0].content;
           setLastUpdated(data.sections[0].updated_at);
           
           if (dbContent && Object.keys(dbContent).length > 0) {
+            console.log('📋 [FacultyStats] DB content:', dbContent);
             setFormData({
               ...defaultFormData,
               ...dbContent
@@ -112,7 +115,7 @@ export function FacultyStatsHandler({ college, templateId }: FacultyStatsHandler
         }
       }
     } catch (error) {
-      console.error('Failed to load faculty stats data:', error);
+      console.error('❌ [FacultyStats] Failed to load:', error);
     } finally {
       if (showLoading) setIsLoading(false);
     }
@@ -126,6 +129,8 @@ export function FacultyStatsHandler({ college, templateId }: FacultyStatsHandler
       const activeTemplateId = getActiveTemplateId();
       const collegeId = getCollegeId();
       
+      console.log('💾 [FacultyStats] Saving formData:', formData);
+      
       const response = await fetch('/api/sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -138,31 +143,84 @@ export function FacultyStatsHandler({ college, templateId }: FacultyStatsHandler
       });
       
       if (response.ok) {
+        console.log('✅ [FacultyStats] Save successful');
         setShowSuccessPopup(true);
         setIsEditing(false);
         await loadFromDatabase(false);
         setTimeout(() => setShowSuccessPopup(false), 3000);
       } else {
+        const errText = await response.text();
+        console.error('❌ [FacultyStats] Save failed:', errText);
         alert('Failed to save changes');
       }
     } catch (error) {
-      console.error('Error saving:', error);
+      console.error('❌ [FacultyStats] Error saving:', error);
       alert('Failed to save changes. Please try again.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // ✅ Image handlers - only upload, no URL paste
-  const handleImageChange = (key: 'desktopImage' | 'mobileImage', fileOrString: File | string) => {
-    if (typeof fileOrString === 'string') {
+  // ✅ Image handler — FIXED to accept BOTH File and string
+  // Pehle `if (typeof fileOrString === 'string') return;` string ko discard kar deta tha.
+  // Ab agar UploadImage base64/URL string bhejta hai to seedha use kar lete hain.
+  const handleImageChange = (
+    key: 'desktopImage' | 'mobileImage',
+    fileOrString: File | string | null
+  ) => {
+    console.log('🔵 [FacultyStats] handleImageChange called', {
+      key,
+      typeofValue: typeof fileOrString,
+      isFile: fileOrString instanceof File,
+      valuePreview:
+        typeof fileOrString === 'string'
+          ? fileOrString.slice(0, 80)
+          : fileOrString?.name || '(non-string)',
+    });
+
+    // Null / undefined safety
+    if (!fileOrString) {
+      console.warn('⚠️ [FacultyStats] Empty fileOrString received, ignoring.');
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData(prev => ({ ...prev, [key]: reader.result as string }));
-    };
-    reader.readAsDataURL(fileOrString);
+
+    // ✅ Case 1: Already a string (base64 data URL or http URL) → use directly
+    if (typeof fileOrString === 'string') {
+      console.log('🟡 [FacultyStats] String received — using directly');
+      setFormData(prev => {
+        const updated = { ...prev, [key]: fileOrString };
+        console.log('🟢 [FacultyStats] Updated formData:', {
+          key,
+          length: fileOrString.length,
+        });
+        return updated;
+      });
+      return;
+    }
+
+    // ✅ Case 2: A File object → convert to base64 via FileReader
+    if (fileOrString instanceof File) {
+      console.log('🟠 [FacultyStats] File object received — starting FileReader');
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        console.log('🟢 [FacultyStats] FileReader done. base64 length:', result?.length);
+        setFormData(prev => ({ ...prev, [key]: result }));
+      };
+      reader.onerror = (err) => {
+        console.error('❌ [FacultyStats] FileReader error:', err);
+      };
+      reader.readAsDataURL(fileOrString);
+      return;
+    }
+
+    console.error('❌ [FacultyStats] Unsupported type:', fileOrString);
+  };
+
+  // ✅ Remove image handler
+  const removeImage = (key: 'desktopImage' | 'mobileImage') => {
+    console.log(`🗑️ [FacultyStats] Removing ${key}`);
+    setFormData(prev => ({ ...prev, [key]: '' }));
   };
 
   useEffect(() => {
@@ -484,11 +542,20 @@ export function FacultyStatsHandler({ college, templateId }: FacultyStatsHandler
               </div>
               <UploadImage
                 value={formData.desktopImage || ''}
-                onChange={(file) => handleImageChange('desktopImage', file)}
-                onRemove={() => setFormData(prev => ({ ...prev, desktopImage: '' }))}
+                onChange={(file) => handleImageChange('desktopImage', file as any)}
+                onRemove={() => removeImage('desktopImage')}
                 aspectRatio="video"
                 disabled={!isEditing}
               />
+              {/* DEBUG: show current value length */}
+              <div className="mt-1 text-[10px] text-gray-400">
+                debug: desktopImage length = {formData.desktopImage?.length || 0}
+              </div>
+              {formData.desktopImage && (
+                <div className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                  <FiCheck className="w-3 h-3" /> Desktop image uploaded
+                </div>
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -499,11 +566,20 @@ export function FacultyStatsHandler({ college, templateId }: FacultyStatsHandler
               </div>
               <UploadImage
                 value={formData.mobileImage || ''}
-                onChange={(file) => handleImageChange('mobileImage', file)}
-                onRemove={() => setFormData(prev => ({ ...prev, mobileImage: '' }))}
+                onChange={(file) => handleImageChange('mobileImage', file as any)}
+                onRemove={() => removeImage('mobileImage')}
                 aspectRatio="video"
                 disabled={!isEditing}
               />
+              {/* DEBUG: show current value length */}
+              <div className="mt-1 text-[10px] text-gray-400">
+                debug: mobileImage length = {formData.mobileImage?.length || 0}
+              </div>
+              {formData.mobileImage && (
+                <div className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                  <FiCheck className="w-3 h-3" /> Mobile image uploaded
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -520,6 +596,12 @@ export function FacultyStatsHandler({ college, templateId }: FacultyStatsHandler
                     src={formData.desktopImage} 
                     alt="Desktop preview" 
                     className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                    onError={() => {
+                      console.error('❌ [FacultyStats] Desktop image failed to load:', formData.desktopImage?.slice(0, 80));
+                    }}
+                    onLoad={() => {
+                      console.log('✅ [FacultyStats] Desktop image loaded');
+                    }}
                   />
                 </div>
               )}
@@ -530,6 +612,12 @@ export function FacultyStatsHandler({ college, templateId }: FacultyStatsHandler
                     src={formData.mobileImage} 
                     alt="Mobile preview" 
                     className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                    onError={() => {
+                      console.error('❌ [FacultyStats] Mobile image failed to load:', formData.mobileImage?.slice(0, 80));
+                    }}
+                    onLoad={() => {
+                      console.log('✅ [FacultyStats] Mobile image loaded');
+                    }}
                   />
                 </div>
               )}

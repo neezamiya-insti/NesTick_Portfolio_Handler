@@ -145,7 +145,7 @@ export function HeroSection({ college, templateId }: HeroSectionProps) {
         }
       }
     } catch (error) {
-      console.error('Failed to load hero data:', error);
+      console.error('❌ [Hero] Failed to load hero data:', error);
     } finally {
       if (showLoading) setIsLoading(false);
     }
@@ -159,6 +159,8 @@ export function HeroSection({ college, templateId }: HeroSectionProps) {
       const activeTemplateId = getActiveTemplateId();
       const collegeId = getCollegeId();
       
+      console.log('💾 [Hero] Saving formData:', formData);
+      
       const response = await fetch('/api/sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -171,15 +173,18 @@ export function HeroSection({ college, templateId }: HeroSectionProps) {
       });
       
       if (response.ok) {
+        console.log('✅ [Hero] Save successful');
         setShowSuccessPopup(true);
         setIsEditing(false);
         await loadFromDatabase(false);
         setTimeout(() => setShowSuccessPopup(false), 3000);
       } else {
+        const errText = await response.text();
+        console.error('❌ [Hero] Save failed:', errText);
         alert('Failed to save changes');
       }
     } catch (error) {
-      console.error('Error saving:', error);
+      console.error('❌ [Hero] Error saving:', error);
       alert('Failed to save changes. Please try again.');
     } finally {
       setIsSaving(false);
@@ -188,6 +193,7 @@ export function HeroSection({ college, templateId }: HeroSectionProps) {
 
   // ✅ Slide handlers
   const addSlide = () => {
+    console.log('➕ [Hero] Adding new slide');
     setFormData(prev => ({
       ...prev,
       slides: [...prev.slides, {
@@ -203,31 +209,93 @@ export function HeroSection({ college, templateId }: HeroSectionProps) {
   };
 
   const updateSlide = (index: number, field: string, value: string) => {
+    console.log(`✏️ [Hero] updateSlide [${index}].${field}:`, value?.slice?.(0, 60));
     const newSlides = [...formData.slides];
     newSlides[index] = { ...newSlides[index], [field]: value };
     setFormData(prev => ({ ...prev, slides: newSlides }));
   };
 
   const removeSlide = (index: number) => {
+    console.log(`🗑️ [Hero] Removing slide at index ${index}`);
     setFormData(prev => ({
       ...prev,
       slides: prev.slides.filter((_, i) => i !== index)
     }));
   };
 
-  // ✅ Image handlers - only upload, no URL paste
-  const handleImageChange = (index: number, key: 'desktopImage' | 'mobileImage', fileOrString: File | string) => {
-    // If it's a string (URL), ignore it - we only allow upload
-    if (typeof fileOrString === 'string') {
+  // ✅ Image handler — handles BOTH File and string (base64/URL)
+  // Reason: UploadImage may internally read the file and return a base64 string
+  // instead of a File object. Previously we were discarding strings entirely,
+  // which is why the preview never updated.
+  const handleImageChange = (
+    index: number,
+    key: 'desktopImage' | 'mobileImage',
+    fileOrString: File | string | null
+  ) => {
+    console.log('🔵 [Hero] handleImageChange called', {
+      index,
+      key,
+      typeofValue: typeof fileOrString,
+      isFile: fileOrString instanceof File,
+      valuePreview:
+        typeof fileOrString === 'string'
+          ? fileOrString.slice(0, 80)
+          : fileOrString?.name || '(non-string)',
+    });
+
+    // Null / undefined safety
+    if (!fileOrString) {
+      console.warn('⚠️ [Hero] Empty fileOrString received, ignoring.');
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const newSlides = [...formData.slides];
-      newSlides[index] = { ...newSlides[index], [key]: reader.result as string };
-      setFormData(prev => ({ ...prev, slides: newSlides }));
-    };
-    reader.readAsDataURL(fileOrString);
+
+    // ✅ Case 1: Already a string (base64 data URL or http URL) → use directly
+    if (typeof fileOrString === 'string') {
+      console.log('🟡 [Hero] String received — using directly as image value');
+      setFormData(prev => {
+        const newSlides = [...prev.slides];
+        newSlides[index] = { ...newSlides[index], [key]: fileOrString };
+        console.log('🟢 [Hero] Updated slide with string image:', {
+          index,
+          key,
+          length: fileOrString.length,
+        });
+        return { ...prev, slides: newSlides };
+      });
+      return;
+    }
+
+    // ✅ Case 2: A File object → convert to base64 via FileReader
+    if (fileOrString instanceof File) {
+      console.log('🟠 [Hero] File object received — starting FileReader');
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        console.log('🟢 [Hero] FileReader done. base64 length:', result?.length);
+        setFormData(prev => {
+          const newSlides = [...prev.slides];
+          newSlides[index] = { ...newSlides[index], [key]: result };
+          return { ...prev, slides: newSlides };
+        });
+      };
+      reader.onerror = (err) => {
+        console.error('❌ [Hero] FileReader error:', err);
+      };
+      reader.readAsDataURL(fileOrString);
+      return;
+    }
+
+    console.error('❌ [Hero] Unsupported type for handleImageChange:', fileOrString);
+  };
+
+  // ✅ Remove image handler
+  const removeImage = (index: number, key: 'desktopImage' | 'mobileImage') => {
+    console.log(`🗑️ [Hero] Removing ${key} at slide ${index}`);
+    setFormData(prev => {
+      const newSlides = [...prev.slides];
+      newSlides[index] = { ...newSlides[index], [key]: '' };
+      return { ...prev, slides: newSlides };
+    });
   };
 
   useEffect(() => {
@@ -398,15 +466,15 @@ export function HeroSection({ college, templateId }: HeroSectionProps) {
                   </div>
                   <UploadImage
                     value={slide.desktopImage || ''}
-                    onChange={(file) => handleImageChange(index, 'desktopImage', file)}
-                    onRemove={() => {
-                      const newSlides = [...formData.slides];
-                      newSlides[index] = { ...newSlides[index], desktopImage: '' };
-                      setFormData(prev => ({ ...prev, slides: newSlides }));
-                    }}
+                    onChange={(file) => handleImageChange(index, 'desktopImage', file as any)}
+                    onRemove={() => removeImage(index, 'desktopImage')}
                     aspectRatio="banner"
                     disabled={!isEditing}
                   />
+                  {/* DEBUG: show current value length */}
+                  <div className="mt-1 text-[10px] text-gray-400">
+                    debug: desktopImage length = {slide.desktopImage?.length || 0}
+                  </div>
                   {slide.desktopImage && (
                     <div className="mt-1 text-xs text-green-600 flex items-center gap-1">
                       <FiCheck className="w-3 h-3" /> Desktop image uploaded
@@ -424,15 +492,15 @@ export function HeroSection({ college, templateId }: HeroSectionProps) {
                   </div>
                   <UploadImage
                     value={slide.mobileImage || ''}
-                    onChange={(file) => handleImageChange(index, 'mobileImage', file)}
-                    onRemove={() => {
-                      const newSlides = [...formData.slides];
-                      newSlides[index] = { ...newSlides[index], mobileImage: '' };
-                      setFormData(prev => ({ ...prev, slides: newSlides }));
-                    }}
+                    onChange={(file) => handleImageChange(index, 'mobileImage', file as any)}
+                    onRemove={() => removeImage(index, 'mobileImage')}
                     aspectRatio="banner"
                     disabled={!isEditing}
                   />
+                  {/* DEBUG: show current value length */}
+                  <div className="mt-1 text-[10px] text-gray-400">
+                    debug: mobileImage length = {slide.mobileImage?.length || 0}
+                  </div>
                   {slide.mobileImage && (
                     <div className="mt-1 text-xs text-green-600 flex items-center gap-1">
                       <FiCheck className="w-3 h-3" /> Mobile image uploaded
@@ -463,6 +531,12 @@ export function HeroSection({ college, templateId }: HeroSectionProps) {
                           src={slide.desktopImage}
                           alt="Desktop preview"
                           className="w-full h-32 object-cover bg-gray-100"
+                          onError={(e) => {
+                            console.error('❌ Desktop image failed to load:', slide.desktopImage?.slice(0, 80));
+                          }}
+                          onLoad={() => {
+                            console.log('✅ Desktop image loaded successfully');
+                          }}
                         />
                       ) : (
                         <div className="w-full h-32 flex flex-col items-center justify-center gap-1 bg-gray-100 dark:bg-gray-800 text-gray-400">
@@ -489,6 +563,12 @@ export function HeroSection({ college, templateId }: HeroSectionProps) {
                           src={slide.mobileImage}
                           alt="Mobile preview"
                           className="w-full h-40 object-cover bg-gray-100"
+                          onError={(e) => {
+                            console.error('❌ Mobile image failed to load:', slide.mobileImage?.slice(0, 80));
+                          }}
+                          onLoad={() => {
+                            console.log('✅ Mobile image loaded successfully');
+                          }}
                         />
                       ) : (
                         <div className="w-full h-40 flex flex-col items-center justify-center gap-1 bg-gray-100 dark:bg-gray-800 text-gray-400">

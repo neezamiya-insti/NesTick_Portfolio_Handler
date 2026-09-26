@@ -137,6 +137,8 @@ export function ProgramsStatsHandler({ college, templateId }: ProgramsStatsHandl
       const timestamp = Date.now();
       const url = `/api/sections?template_id=${activeTemplateId}&section_name=ProgramsStats&college_id=${collegeId}&_=${timestamp}`;
       
+      console.log('🔄 [ProgramsStats] Loading from:', url);
+      
       const response = await fetch(url, {
         cache: 'no-store',
         headers: {
@@ -147,11 +149,14 @@ export function ProgramsStatsHandler({ college, templateId }: ProgramsStatsHandl
       
       if (response.ok) {
         const data = await response.json();
+        console.log('📦 [ProgramsStats] API Response:', data);
+        
         if (data.sections && data.sections.length > 0) {
           const dbContent = data.sections[0].content;
           setLastUpdated(data.sections[0].updated_at);
           
           if (dbContent && Object.keys(dbContent).length > 0) {
+            console.log('📋 [ProgramsStats] DB content:', dbContent);
             setFormData({
               ...defaultFormData,
               ...dbContent,
@@ -161,7 +166,7 @@ export function ProgramsStatsHandler({ college, templateId }: ProgramsStatsHandl
         }
       }
     } catch (error) {
-      console.error('Failed to load programs stats data:', error);
+      console.error('❌ [ProgramsStats] Failed to load:', error);
     } finally {
       if (showLoading) setIsLoading(false);
     }
@@ -175,6 +180,8 @@ export function ProgramsStatsHandler({ college, templateId }: ProgramsStatsHandl
       const activeTemplateId = getActiveTemplateId();
       const collegeId = getCollegeId();
       
+      console.log('💾 [ProgramsStats] Saving formData:', formData);
+      
       const response = await fetch('/api/sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -187,15 +194,18 @@ export function ProgramsStatsHandler({ college, templateId }: ProgramsStatsHandl
       });
       
       if (response.ok) {
+        console.log('✅ [ProgramsStats] Save successful');
         setShowSuccessPopup(true);
         setIsEditing(false);
         await loadFromDatabase(false);
         setTimeout(() => setShowSuccessPopup(false), 3000);
       } else {
+        const errText = await response.text();
+        console.error('❌ [ProgramsStats] Save failed:', errText);
         alert('Failed to save changes');
       }
     } catch (error) {
-      console.error('Error saving:', error);
+      console.error('❌ [ProgramsStats] Error saving:', error);
       alert('Failed to save changes. Please try again.');
     } finally {
       setIsSaving(false);
@@ -204,6 +214,7 @@ export function ProgramsStatsHandler({ college, templateId }: ProgramsStatsHandl
 
   // ✅ Feature handlers
   const addFeature = () => {
+    console.log('➕ [ProgramsStats] Adding new feature');
     const newId = `feature${Date.now()}`;
     setFormData(prev => ({
       ...prev,
@@ -222,41 +233,130 @@ export function ProgramsStatsHandler({ college, templateId }: ProgramsStatsHandl
   };
 
   const updateFeature = (index: number, field: string, value: string) => {
+    console.log(`✏️ [ProgramsStats] updateFeature [${index}].${field}:`, value?.slice?.(0, 60));
     const newFeatures = [...formData.features];
     newFeatures[index] = { ...newFeatures[index], [field]: value };
     setFormData(prev => ({ ...prev, features: newFeatures }));
   };
 
   const removeFeature = (index: number) => {
+    console.log(`🗑️ [ProgramsStats] Removing feature at index ${index}`);
     setFormData(prev => ({
       ...prev,
       features: prev.features.filter((_, i) => i !== index)
     }));
   };
 
-  // ✅ Image handlers - only upload, no URL paste
-  const handleImageChange = (key: 'centerImage', fileOrString: File | string) => {
-    if (typeof fileOrString === 'string') {
+  // ✅ Image handler for centerImage — FIXED to accept BOTH File and string
+  const handleImageChange = (
+    key: 'centerImage',
+    fileOrString: File | string | null
+  ) => {
+    console.log('🔵 [ProgramsStats] handleImageChange (center) called', {
+      key,
+      typeofValue: typeof fileOrString,
+      isFile: fileOrString instanceof File,
+      valuePreview:
+        typeof fileOrString === 'string'
+          ? fileOrString.slice(0, 80)
+          : fileOrString?.name || '(non-string)',
+    });
+
+    if (!fileOrString) {
+      console.warn('⚠️ [ProgramsStats] Empty fileOrString received, ignoring.');
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData(prev => ({ ...prev, [key]: reader.result as string }));
-    };
-    reader.readAsDataURL(fileOrString);
+
+    // ✅ Case 1: Already a string (base64/URL) → use directly
+    if (typeof fileOrString === 'string') {
+      console.log('🟡 [ProgramsStats] String received — using directly');
+      setFormData(prev => {
+        console.log('🟢 [ProgramsStats] Updated centerImage, length:', fileOrString.length);
+        return { ...prev, [key]: fileOrString };
+      });
+      return;
+    }
+
+    // ✅ Case 2: File object → convert via FileReader
+    if (fileOrString instanceof File) {
+      console.log('🟠 [ProgramsStats] File received — starting FileReader');
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        console.log('🟢 [ProgramsStats] FileReader done. base64 length:', result?.length);
+        setFormData(prev => ({ ...prev, [key]: result }));
+      };
+      reader.onerror = (err) => {
+        console.error('❌ [ProgramsStats] FileReader error:', err);
+      };
+      reader.readAsDataURL(fileOrString);
+      return;
+    }
+
+    console.error('❌ [ProgramsStats] Unsupported type:', fileOrString);
   };
 
-  const handleFeatureImageChange = (index: number, fileOrString: File | string) => {
-    if (typeof fileOrString === 'string') {
+  // ✅ Image handler for feature cards — FIXED to accept BOTH File and string
+  const handleFeatureImageChange = (
+    index: number,
+    fileOrString: File | string | null
+  ) => {
+    console.log('🔵 [ProgramsStats] handleFeatureImageChange called', {
+      index,
+      typeofValue: typeof fileOrString,
+      isFile: fileOrString instanceof File,
+      valuePreview:
+        typeof fileOrString === 'string'
+          ? fileOrString.slice(0, 80)
+          : fileOrString?.name || '(non-string)',
+    });
+
+    if (!fileOrString) {
+      console.warn('⚠️ [ProgramsStats] Empty fileOrString received, ignoring.');
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const newFeatures = [...formData.features];
-      newFeatures[index] = { ...newFeatures[index], desktopImage: reader.result as string };
-      setFormData(prev => ({ ...prev, features: newFeatures }));
-    };
-    reader.readAsDataURL(fileOrString);
+
+    // ✅ Case 1: Already a string
+    if (typeof fileOrString === 'string') {
+      console.log('🟡 [ProgramsStats] String received — using directly');
+      setFormData(prev => {
+        const newFeatures = [...prev.features];
+        newFeatures[index] = { ...newFeatures[index], desktopImage: fileOrString };
+        console.log('🟢 [ProgramsStats] Updated feature image, length:', fileOrString.length);
+        return { ...prev, features: newFeatures };
+      });
+      return;
+    }
+
+    // ✅ Case 2: File object
+    if (fileOrString instanceof File) {
+      console.log('🟠 [ProgramsStats] File received — starting FileReader');
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        console.log('🟢 [ProgramsStats] FileReader done. base64 length:', result?.length);
+        setFormData(prev => {
+          const newFeatures = [...prev.features];
+          newFeatures[index] = { ...newFeatures[index], desktopImage: result };
+          return { ...prev, features: newFeatures };
+        });
+      };
+      reader.onerror = (err) => {
+        console.error('❌ [ProgramsStats] FileReader error:', err);
+      };
+      reader.readAsDataURL(fileOrString);
+      return;
+    }
+
+    console.error('❌ [ProgramsStats] Unsupported type:', fileOrString);
+  };
+
+  // ✅ Remove feature image handler
+  const removeFeatureImage = (index: number) => {
+    console.log(`🗑️ [ProgramsStats] Removing feature ${index} image`);
+    const newFeatures = [...formData.features];
+    newFeatures[index] = { ...newFeatures[index], desktopImage: '' };
+    setFormData(prev => ({ ...prev, features: newFeatures }));
   };
 
   useEffect(() => {
@@ -409,11 +509,20 @@ export function ProgramsStatsHandler({ college, templateId }: ProgramsStatsHandl
             </label>
             <UploadImage
               value={formData.centerImage || ''}
-              onChange={(file) => handleImageChange('centerImage', file)}
+              onChange={(file) => handleImageChange('centerImage', file as any)}
               onRemove={() => setFormData(prev => ({ ...prev, centerImage: '' }))}
               aspectRatio="portrait"
               disabled={!isEditing}
             />
+            {/* DEBUG: show current value length */}
+            <div className="mt-1 text-[10px] text-gray-400">
+              debug: centerImage length = {formData.centerImage?.length || 0}
+            </div>
+            {formData.centerImage && (
+              <div className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                <FiCheck className="w-3 h-3" /> Center image uploaded
+              </div>
+            )}
           </div>
         </div>
 
@@ -525,15 +634,20 @@ export function ProgramsStatsHandler({ college, templateId }: ProgramsStatsHandl
                     </label>
                     <UploadImage
                       value={feature.desktopImage || ''}
-                      onChange={(file) => handleFeatureImageChange(index, file)}
-                      onRemove={() => {
-                        const newFeatures = [...formData.features];
-                        newFeatures[index] = { ...newFeatures[index], desktopImage: '' };
-                        setFormData(prev => ({ ...prev, features: newFeatures }));
-                      }}
+                      onChange={(file) => handleFeatureImageChange(index, file as any)}
+                      onRemove={() => removeFeatureImage(index)}
                       aspectRatio="square"
                       disabled={!isEditing}
                     />
+                    {/* DEBUG: show current value length */}
+                    <div className="mt-1 text-[10px] text-gray-400">
+                      debug: feature[{index}].desktopImage length = {feature.desktopImage?.length || 0}
+                    </div>
+                    {feature.desktopImage && (
+                      <div className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                        <FiCheck className="w-3 h-3" /> Feature image uploaded
+                      </div>
+                    )}
                   </div>
                 </div>
               );
