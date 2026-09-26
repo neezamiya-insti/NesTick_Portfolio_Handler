@@ -1,4 +1,4 @@
-// app/api/sections/route.ts (COMPLETELY FIXED)
+// app/api/sections/route.ts (COMPLETELY FIXED - v2)
 
 import { NextRequest, NextResponse } from 'next/server';
 import mysql from 'mysql2/promise';
@@ -36,14 +36,13 @@ export function OPTIONS() {
 
 export async function POST(request: NextRequest) {
   try {
-    // ✅ FIX: Include college_id in request body
     const { template_id, section_name, content, college_id } = await request.json();
 
-    console.log('📝 [API] POST /api/sections - Request:', { 
-      template_id, 
-      section_name, 
+    console.log('📝 [API] POST /api/sections - Request:', {
+      template_id,
+      section_name,
       college_id,
-      content: !!content 
+      content: !!content
     });
 
     if (!template_id || !section_name || !content) {
@@ -59,7 +58,6 @@ export async function POST(request: NextRequest) {
     const connection = await pool.getConnection();
 
     try {
-      // ✅ FIX: Search by template_id AND college_id
       const [existing] = await connection.execute<RowDataPacket[]>(
         `SELECT id, content, section_name, college_id 
          FROM college_template_sections 
@@ -76,8 +74,7 @@ export async function POST(request: NextRequest) {
         const sectionId = existing[0].id;
         const existingSectionName = existing[0].section_name;
         const existingCollegeId = existing[0].college_id;
-        
-        // ✅ Update existing section
+
         await connection.execute(
           `UPDATE college_template_sections 
            SET content = ?, updated_at = NOW() 
@@ -85,7 +82,6 @@ export async function POST(request: NextRequest) {
           [JSON.stringify(content), sectionId]
         );
 
-        // ✅ ✅ ✅ NEW: Update colleges table name if changed
         if (content.name) {
           await connection.execute(
             `UPDATE colleges 
@@ -97,11 +93,11 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`✅ [API] Section updated - ID: ${sectionId}, College: ${existingCollegeId}, Template: ${template_id}, Section: ${section_name}`);
-        
-        return jsonResponse({ 
+
+        return jsonResponse({
           success: true,
-          message: "Section content updated successfully", 
-          id: sectionId, 
+          message: "Section content updated successfully",
+          id: sectionId,
           action: "updated",
           template_id,
           section_name: existingSectionName,
@@ -109,9 +105,8 @@ export async function POST(request: NextRequest) {
           college_name_updated: true
         });
       } else {
-        // ✅ Create new section for this college if not exists
         console.log(`🆕 [API] Section not found, creating new section for college ${college_id}`);
-        
+
         const [result] = await connection.execute(
           `INSERT INTO college_template_sections 
            (college_id, template_id, section_name, content, is_active, created_at, updated_at) 
@@ -120,8 +115,7 @@ export async function POST(request: NextRequest) {
         );
 
         const insertId = (result as any).insertId;
-        
-        // ✅ Also update colleges table name for new section
+
         if (content.name) {
           await connection.execute(
             `UPDATE colleges 
@@ -133,11 +127,11 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`✅ [API] Section created - ID: ${insertId}, College: ${college_id}, Template: ${template_id}, Section: ${section_name}`);
-        
-        return jsonResponse({ 
+
+        return jsonResponse({
           success: true,
-          message: "Section created successfully", 
-          id: insertId, 
+          message: "Section created successfully",
+          id: insertId,
           action: "created",
           template_id,
           section_name,
@@ -150,7 +144,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('❌ [API] DB error in POST:', error);
-    return jsonResponse({ 
+    return jsonResponse({
       success: false,
       error: "Failed to save section",
       details: error instanceof Error ? error.message : String(error)
@@ -170,7 +164,60 @@ export async function GET(request: NextRequest) {
     const connection = await pool.getConnection();
 
     try {
-      let query = `
+      // ✅✅✅ FIX: Two-step query to avoid sorting large `content` column
+      //
+      // STEP 1: Fetch ONLY ids (tiny data — fits in sort buffer easily)
+      // STEP 2: Fetch full rows for those ids (content included, but no sort needed)
+      //
+      // This prevents MySQL from loading 2-5MB base64 content into the sort
+      // buffer, which was causing the ER_OUT_OF_SORTMEMORY (errno 1038) error.
+
+      // ---------- STEP 1: Fetch only IDs ----------
+      let idQuery = `
+        SELECT cts.id
+        FROM college_template_sections cts
+        WHERE 1=1
+      `;
+      const idParams: any[] = [];
+
+      if (template_id) {
+        idQuery += " AND cts.template_id = ?";
+        idParams.push(parseInt(template_id));
+        console.log(`🔍 [API] Filtering by template_id: ${template_id}`);
+      }
+
+      if (section_name) {
+        idQuery += " AND LOWER(cts.section_name) = LOWER(?)";
+        idParams.push(section_name);
+        console.log(`🔍 [API] Filtering by section_name (case-insensitive): ${section_name}`);
+      }
+
+      if (college_id) {
+        idQuery += " AND cts.college_id = ?";
+        idParams.push(parseInt(college_id));
+        console.log(`🔍 [API] Filtering by college_id: ${college_id}`);
+      }
+
+      idQuery += " ORDER BY cts.created_at DESC";
+
+      console.log(`📊 [API] Step 1: Fetching IDs only (no content sort)`);
+      console.log(`📊 [API] ID query params:`, idParams);
+
+      const [idRows] = await connection.execute<RowDataPacket[]>(idQuery, idParams);
+
+      console.log(`✅ [API] Step 1 done — found ${idRows.length} matching section(s)`);
+
+      // If no IDs, return early
+      if (idRows.length === 0) {
+        console.log(`⚠️ [API] No sections found for criteria: template_id=${template_id}, section_name=${section_name}, college_id=${college_id}`);
+        return jsonResponse({ sections: [], success: true });
+      }
+
+      // ---------- STEP 2: Fetch full rows by IDs ----------
+      const ids = idRows.map((r) => r.id);
+      const placeholders = ids.map(() => '?').join(',');
+
+      const fullQuery = `
         SELECT 
           cts.id,
           cts.college_id,
@@ -183,36 +230,16 @@ export async function GET(request: NextRequest) {
           t.name as template_name
         FROM college_template_sections cts
         LEFT JOIN templates t ON cts.template_id = t.id
-        WHERE 1=1
+        WHERE cts.id IN (${placeholders})
+        ORDER BY cts.created_at DESC
       `;
-      const params: any[] = [];
 
-      if (template_id) {
-        query += " AND cts.template_id = ?";
-        params.push(parseInt(template_id));
-        console.log(`🔍 [API] Filtering by template_id: ${template_id}`);
-      }
+      console.log(`📊 [API] Step 2: Fetching full rows for ${ids.length} ID(s)`);
+      console.log(`📊 [API] IDs:`, ids);
 
-      if (section_name) {
-        query += " AND LOWER(cts.section_name) = LOWER(?)";
-        params.push(section_name);
-        console.log(`🔍 [API] Filtering by section_name (case-insensitive): ${section_name}`);
-      }
+      const [rows] = await connection.execute<RowDataPacket[]>(fullQuery, ids);
 
-      if (college_id) {
-        query += " AND cts.college_id = ?";
-        params.push(parseInt(college_id));
-        console.log(`🔍 [API] Filtering by college_id: ${college_id}`);
-      }
-
-      query += " ORDER BY cts.created_at DESC";
-
-      console.log(`📊 [API] Executing query`);
-      console.log(`📊 [API] Query params:`, params);
-
-      const [rows] = await connection.execute<RowDataPacket[]>(query, params);
-
-      console.log(`✅ [API] Found ${rows.length} sections`);
+      console.log(`✅ [API] Step 2 done — fetched ${rows.length} full row(s)`);
 
       const sections = rows.map((row) => {
         let parsedContent = row.content;
@@ -225,7 +252,12 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        console.log(`📄 [API] Section ${row.id}: ${row.section_name} - College: ${row.college_id} - Active: ${row.is_active}`);
+        const contentSize =
+          typeof row.content === 'string'
+            ? row.content.length
+            : JSON.stringify(row.content).length;
+
+        console.log(`📄 [API] Section ${row.id}: ${row.section_name} - College: ${row.college_id} - Active: ${row.is_active} - Content size: ${contentSize} bytes`);
 
         return {
           id: row.id,
@@ -240,19 +272,16 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      if (sections.length === 0) {
-        console.log(`⚠️ [API] No sections found for criteria: template_id=${template_id}, section_name=${section_name}, college_id=${college_id}`);
-      }
-
       return jsonResponse({ sections, success: true });
     } finally {
       connection.release();
     }
   } catch (error) {
     console.error('❌ [API] DB error in GET:', error);
-    return jsonResponse({ 
+    return jsonResponse({
       success: false,
-      error: "Failed to fetch sections" 
+      error: "Failed to fetch sections",
+      details: error instanceof Error ? error.message : String(error)
     }, 500);
   }
 }
