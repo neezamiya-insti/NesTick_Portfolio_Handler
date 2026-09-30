@@ -27,6 +27,10 @@ import { ScholarshipStatsHandler } from '@/app/components/sections/ScholarshipSt
 import { ProgramsStatsHandler } from '@/app/components/sections/ProgramsStatsHandler';
 import { AboutStatsHandler } from '@/app/components/sections/AboutStatsHandler';
 import { FacultyStatsHandler } from '@/app/components/sections/FacultyStatsHandler';
+// ✅ NEW: Dynamic handlers
+import { AboutJourneyManagement } from '@/app/components/sections/AboutJourneyManagement';
+import { FAQSectionManagement } from '@/app/components/sections/FAQSectionManagement';
+import { TestimonialsManagement } from '@/app/components/sections/TestimonialsManagement';
 /* eslint-disable */
 
 import { 
@@ -51,6 +55,9 @@ import {
   FormInput
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import CoreValuesManagement from './sections/CoreValuesManagement';
+import HowWeTeachManagement from './sections/HowWeTeachManagement';
+import PrincipalMessageManagement from './sections/PrincipalMessageManagement';
 
 interface DashboardProps {
   initialData: CollegeData;
@@ -463,6 +470,13 @@ const sectionComponents: Record<SectionType, React.ComponentType<any>> = {
   programsstats: ProgramsStatsHandler,
   aboutstats: AboutStatsHandler,
   facultystats: FacultyStatsHandler,
+  // ✅ NEW
+  aboutjourney: AboutJourneyManagement,
+  faq: FAQSectionManagement,
+  testimonials: TestimonialsManagement,
+  corevalues: CoreValuesManagement,
+  howweteach: HowWeTeachManagement,
+  principalmessage: PrincipalMessageManagement,
   flexible: () => (
     <div className="text-gray-500 dark:text-gray-500 text-center py-16">
       <Grid3X3 className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -518,7 +532,30 @@ const normalizeSectionKey = (section: string): SectionType => {
     facultystats: 'facultystats',
     faculty_stats: 'facultystats',
     facultystat: 'facultystats',
+    // ✅ NEW
+    aboutjourney: 'aboutjourney',
+    about_journey: 'aboutjourney',
+    our_journey: 'aboutjourney',
+    journey: 'aboutjourney',
+    faq: 'faq',
+    faqs: 'faq',
+    frequently_asked_questions: 'faq',
+    testimonials: 'testimonials',
+    testimonial: 'testimonials',
+    reviews: 'testimonials',
+    student_testimonials: 'testimonials',
     flexible: 'flexible',
+    corevalues: 'corevalues',
+core_values: 'corevalues',
+values: 'corevalues',
+howweteach: 'howweteach',
+how_we_teach: 'howweteach',
+methodology: 'howweteach',
+learning_methodology: 'howweteach',
+principalmessage: 'principalmessage',
+principal_message: 'principalmessage',
+principals_message: 'principalmessage',
+message: 'principalmessage',
   };
 
   return aliases[normalized] || 'dashboard';
@@ -752,7 +789,8 @@ function DashboardContent({ initialData }: DashboardProps) {
           </div>
           <AnnouncementsSection announcements={announcements} />
         </div>
-      ) : activeSection === 'about' ? (
+      ) : activeSection === 'principalmessage' ? 
+  <PrincipalMessageManagement college={collegeData.college} templateId={collegeDetails?.template_id} /> : activeSection === 'about' ? (
         <AboutSection college={collegeData.college} templateId={collegeDetails?.template_id} />
       ) : activeSection === 'gallery' ? (
         <GallerySection college={collegeData.college} templateId={collegeDetails?.template_id} />
@@ -784,8 +822,17 @@ function DashboardContent({ initialData }: DashboardProps) {
         <ProgramsStatsHandler college={collegeData.college} templateId={collegeDetails?.template_id} />
       ) : activeSection === 'aboutstats' ? (
         <AboutStatsHandler college={collegeData.college} templateId={collegeDetails?.template_id} />
-      ) : activeSection === 'facultystats' ? (
+      ): activeSection === 'corevalues' ? 
+  <CoreValuesManagement college={collegeData.college} templateId={collegeDetails?.template_id} />: activeSection === 'facultystats' ? (
         <FacultyStatsHandler college={collegeData.college} templateId={collegeDetails?.template_id} />
+      ): activeSection === 'aboutjourney' ? (
+        <AboutJourneyManagement college={collegeData.college} templateId={collegeDetails?.template_id} />
+        ) : activeSection === 'howweteach' ? (
+  <HowWeTeachManagement college={collegeData.college} templateId={collegeDetails?.template_id} />
+      ) : activeSection === 'faq' ? (
+        <FAQSectionManagement college={collegeData.college} templateId={collegeDetails?.template_id} />
+      ) : activeSection === 'testimonials' ? (
+        <TestimonialsManagement college={collegeData.college} templateId={collegeDetails?.template_id} />
       ) : ActiveComponent ? (
         <ActiveComponent 
           data={sectionData} 

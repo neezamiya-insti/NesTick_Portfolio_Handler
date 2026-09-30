@@ -109,7 +109,15 @@ export type SectionType =
   | 'programsstats'
   | 'aboutstats'
   | 'facultystats'
-  | 'flexible';
+  // ✅ NEW
+  | 'aboutjourney'
+  | 'faq'
+  | 'testimonials'
+  | 'flexible'
+  | 'corevalues'
+  | 'howweteach'
+  | 'principalmessage'
+
 
 export interface SectionConfig {
   id: SectionType;
