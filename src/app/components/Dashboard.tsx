@@ -27,21 +27,27 @@ import { ScholarshipStatsHandler } from '@/app/components/sections/ScholarshipSt
 import { ProgramsStatsHandler } from '@/app/components/sections/ProgramsStatsHandler';
 import { AboutStatsHandler } from '@/app/components/sections/AboutStatsHandler';
 import { FacultyStatsHandler } from '@/app/components/sections/FacultyStatsHandler';
-// ✅ NEW: Dynamic handlers
+
+// ✅ Dynamic handlers
 import { AboutJourneyManagement } from '@/app/components/sections/AboutJourneyManagement';
 import { FAQSectionManagement } from '@/app/components/sections/FAQSectionManagement';
 import { TestimonialsManagement } from '@/app/components/sections/TestimonialsManagement';
+import { StudentLifeManagement } from '@/app/components/sections/StudentLifeManagement';
+
+// ✅ NEW: Achievements
+import { AchievementsManagement } from '@/app/components/sections/AchievementsManagement';
+
 /* eslint-disable */
 
-import { 
-  Lock, 
-  Bell, 
-  Eye, 
-  Grid3X3, 
-  Users, 
-  Calendar, 
-  Image, 
-  BookOpen, 
+import {
+  Lock,
+  Bell,
+  Eye,
+  Grid3X3,
+  Users,
+  Calendar,
+  Image,
+  BookOpen,
   Phone,
   TrendingUp,
   Clock,
@@ -118,7 +124,7 @@ const AuthChecker: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
     const checkAuth = () => {
       const authCollege = localStorage.getItem('auth_college');
-      
+
       if (!authCollege) {
         setIsAuthenticated(false);
         router.push('/College_Portfolio_Handler/login');
@@ -228,7 +234,7 @@ const StatsCards: React.FC = () => {
           >
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-gray-100 to-transparent dark:from-gray-800 dark:to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform duration-500"></div>
             <Sparkles className="absolute top-4 right-4 w-4 h-4 text-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            
+
             <div className="relative z-10">
               <div className="flex items-start justify-between mb-4">
                 <div className={cn("p-3 rounded-xl", stat.iconBg)}>
@@ -236,7 +242,7 @@ const StatsCards: React.FC = () => {
                 </div>
                 <span className={cn(
                   "px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1",
-                  stat.change.startsWith('+') 
+                  stat.change.startsWith('+')
                     ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400'
                     : 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'
                 )}>
@@ -244,7 +250,7 @@ const StatsCards: React.FC = () => {
                   {stat.change}
                 </span>
               </div>
-              
+
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">{stat.title}</h3>
               <div className="flex items-baseline justify-between">
                 <p className="text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
@@ -257,7 +263,7 @@ const StatsCards: React.FC = () => {
                 </p>
               </div>
             </div>
-            
+
             <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-100 dark:bg-gray-800">
               <div className={cn("h-full bg-gradient-to-r", stat.color)} style={{ width: `${Math.random() * 40 + 60}%` }}></div>
             </div>
@@ -362,14 +368,14 @@ const AnnouncementsSection: React.FC<{ announcements: Announcement[] }> = ({ ann
 );
 
 /* Status Card */
-const StatusCard: React.FC<{ status: 'active' | 'inactive'; collegeName: string; collegeDetails?: any }> = ({ 
-  status, 
+const StatusCard: React.FC<{ status: 'active' | 'inactive'; collegeName: string; collegeDetails?: any }> = ({
+  status,
   collegeName,
-  collegeDetails 
+  collegeDetails
 }) => (
   <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-6 relative overflow-hidden">
     <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-gray-100 to-transparent dark:from-gray-800 dark:to-transparent rounded-bl-full opacity-50"></div>
-    
+
     <div className="relative z-10">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
@@ -470,13 +476,16 @@ const sectionComponents: Record<SectionType, React.ComponentType<any>> = {
   programsstats: ProgramsStatsHandler,
   aboutstats: AboutStatsHandler,
   facultystats: FacultyStatsHandler,
-  // ✅ NEW
+  // ✅ Dynamic handlers
   aboutjourney: AboutJourneyManagement,
   faq: FAQSectionManagement,
   testimonials: TestimonialsManagement,
   corevalues: CoreValuesManagement,
   howweteach: HowWeTeachManagement,
   principalmessage: PrincipalMessageManagement,
+  studentlife: StudentLifeManagement,
+  // ✅ NEW: Achievements
+  achievements: AchievementsManagement,
   flexible: () => (
     <div className="text-gray-500 dark:text-gray-500 text-center py-16">
       <Grid3X3 className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -532,7 +541,7 @@ const normalizeSectionKey = (section: string): SectionType => {
     facultystats: 'facultystats',
     faculty_stats: 'facultystats',
     facultystat: 'facultystats',
-    // ✅ NEW
+    // ✅ Dynamic
     aboutjourney: 'aboutjourney',
     about_journey: 'aboutjourney',
     our_journey: 'aboutjourney',
@@ -546,16 +555,28 @@ const normalizeSectionKey = (section: string): SectionType => {
     student_testimonials: 'testimonials',
     flexible: 'flexible',
     corevalues: 'corevalues',
-core_values: 'corevalues',
-values: 'corevalues',
-howweteach: 'howweteach',
-how_we_teach: 'howweteach',
-methodology: 'howweteach',
-learning_methodology: 'howweteach',
-principalmessage: 'principalmessage',
-principal_message: 'principalmessage',
-principals_message: 'principalmessage',
-message: 'principalmessage',
+    core_values: 'corevalues',
+    values: 'corevalues',
+    howweteach: 'howweteach',
+    how_we_teach: 'howweteach',
+    methodology: 'howweteach',
+    learning_methodology: 'howweteach',
+    principalmessage: 'principalmessage',
+    principal_message: 'principalmessage',
+    principals_message: 'principalmessage',
+    message: 'principalmessage',
+    studentlife: 'studentlife',
+    student_life: 'studentlife',
+    campus_life: 'studentlife',
+    life_at_campus: 'studentlife',
+    // ✅ NEW: Achievements
+    achievements: 'achievements',
+    achievement: 'achievements',
+    milestones: 'achievements',
+    milestone: 'achievements',
+    our_achievements: 'achievements',
+    proud_moments: 'achievements',
+    success_stories: 'achievements',
   };
 
   return aliases[normalized] || 'dashboard';
@@ -598,14 +619,14 @@ function DashboardContent({ initialData }: DashboardProps) {
   useEffect(() => {
     async function fetchDashboardData() {
       if (!currentCollegeId) return;
-      
+
       try {
         setIsLoading(true);
         setError(null);
-        
+
         const response = await fetch(`/api/college/dashboard-data?collegeId=${currentCollegeId}`);
         const data = await response.json();
-        
+
         if (data.success) {
           setCollegeDetails(data.college);
           setCollegeData(prev => ({
@@ -658,7 +679,7 @@ function DashboardContent({ initialData }: DashboardProps) {
 
   const persistCollegeToLocal = (updatedCollege: College) => {
     if (typeof window === 'undefined' || !currentCollegeId) return;
-    
+
     const rawColleges = localStorage.getItem('colleges');
     const colleges: College[] = rawColleges ? JSON.parse(rawColleges) : [];
 
@@ -671,7 +692,7 @@ function DashboardContent({ initialData }: DashboardProps) {
 
   const updateSectionData = (section: SectionType, data: any) => {
     if (!currentCollegeId) return;
-    
+
     setCollegeData((prev) => {
       const updated = structuredClone(prev);
       if (section === 'about') updated.college = { ...updated.college, ...data };
@@ -789,8 +810,9 @@ function DashboardContent({ initialData }: DashboardProps) {
           </div>
           <AnnouncementsSection announcements={announcements} />
         </div>
-      ) : activeSection === 'principalmessage' ? 
-  <PrincipalMessageManagement college={collegeData.college} templateId={collegeDetails?.template_id} /> : activeSection === 'about' ? (
+      ) : activeSection === 'principalmessage' ? (
+        <PrincipalMessageManagement college={collegeData.college} templateId={collegeDetails?.template_id} />
+      ) : activeSection === 'about' ? (
         <AboutSection college={collegeData.college} templateId={collegeDetails?.template_id} />
       ) : activeSection === 'gallery' ? (
         <GallerySection college={collegeData.college} templateId={collegeDetails?.template_id} />
@@ -822,20 +844,25 @@ function DashboardContent({ initialData }: DashboardProps) {
         <ProgramsStatsHandler college={collegeData.college} templateId={collegeDetails?.template_id} />
       ) : activeSection === 'aboutstats' ? (
         <AboutStatsHandler college={collegeData.college} templateId={collegeDetails?.template_id} />
-      ): activeSection === 'corevalues' ? 
-  <CoreValuesManagement college={collegeData.college} templateId={collegeDetails?.template_id} />: activeSection === 'facultystats' ? (
+      ) : activeSection === 'corevalues' ? (
+        <CoreValuesManagement college={collegeData.college} templateId={collegeDetails?.template_id} />
+      ) : activeSection === 'facultystats' ? (
         <FacultyStatsHandler college={collegeData.college} templateId={collegeDetails?.template_id} />
-      ): activeSection === 'aboutjourney' ? (
+      ) : activeSection === 'aboutjourney' ? (
         <AboutJourneyManagement college={collegeData.college} templateId={collegeDetails?.template_id} />
-        ) : activeSection === 'howweteach' ? (
-  <HowWeTeachManagement college={collegeData.college} templateId={collegeDetails?.template_id} />
+      ) : activeSection === 'howweteach' ? (
+        <HowWeTeachManagement college={collegeData.college} templateId={collegeDetails?.template_id} />
       ) : activeSection === 'faq' ? (
         <FAQSectionManagement college={collegeData.college} templateId={collegeDetails?.template_id} />
       ) : activeSection === 'testimonials' ? (
         <TestimonialsManagement college={collegeData.college} templateId={collegeDetails?.template_id} />
+      ) : activeSection === 'studentlife' ? (
+        <StudentLifeManagement college={collegeData.college} templateId={collegeDetails?.template_id} />
+      ) : activeSection === 'achievements' ? (
+        <AchievementsManagement college={collegeData.college} templateId={collegeDetails?.template_id} />
       ) : ActiveComponent ? (
-        <ActiveComponent 
-          data={sectionData} 
+        <ActiveComponent
+          data={sectionData}
           onUpdate={(data: any) => updateSectionData(activeSection, data)}
           college={collegeData.college}
           templateId={collegeDetails?.template_id}

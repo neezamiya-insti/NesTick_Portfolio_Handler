@@ -117,6 +117,8 @@ export type SectionType =
   | 'corevalues'
   | 'howweteach'
   | 'principalmessage'
+   | 'studentlife'
+    | 'achievements'
 
 
 export interface SectionConfig {
