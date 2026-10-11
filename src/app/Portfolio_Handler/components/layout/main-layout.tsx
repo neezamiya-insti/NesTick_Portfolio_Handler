@@ -26,7 +26,8 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           const allowedEmails = [
             'tauheeddeveloper13@gmail.com',
             'nesticktech@gmail.com',
-            'neezamiya@gmail.com'
+            'neezamiya@gmail.com',
+            'ayeshamubashra@cuivehari.edu.pk'
           ];
           
           // Check if user email is not in allowed list
